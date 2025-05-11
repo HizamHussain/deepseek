@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Kontrol Tangan</title>
+    <title>Game Kontrol Tangan v2</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
         }
         
         #game-container {
             position: relative;
             width: 100vw;
             height: 100vh;
-            background-color: #f0f0f0;
+            background-color: #e8f4f8;
         }
         
         #video-container {
@@ -25,48 +26,59 @@
             right: 10px;
             width: 200px;
             height: 150px;
-            border: 2px solid #333;
+            border: 3px solid #333;
+            border-radius: 8px;
             background-color: #000;
             z-index: 100;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         
         #video {
             width: 100%;
             height: 100%;
             object-fit: cover;
-        }
-        
-        #canvas {
-            display: none;
+            border-radius: 5px;
         }
         
         #pointer {
             position: absolute;
             width: 30px;
             height: 30px;
-            background-color: red;
+            background-color: #ff3b3b;
             border-radius: 50%;
             transform: translate(-50%, -50%);
             z-index: 10;
+            box-shadow: 0 0 15px #ff0000;
+            transition: transform 0.1s ease-out;
         }
         
         .target {
             position: absolute;
-            width: 40px;
-            height: 40px;
-            background-color: blue;
+            width: 50px;
+            height: 50px;
+            background-color: #4a90e2;
             border-radius: 50%;
             transform: translate(-50%, -50%);
-            cursor: pointer;
+            z-index: 5;
+            box-shadow: 0 0 10px rgba(74, 144, 226, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
         }
         
         #score-display {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            font-size: 24px;
+            top: 20px;
+            left: 20px;
+            font-size: 28px;
             color: #333;
             z-index: 100;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
         #start-screen {
@@ -75,30 +87,70 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             color: white;
             z-index: 200;
+            text-align: center;
         }
         
         #start-button {
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #4CAF50;
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: #2ecc71;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 30px;
             cursor: pointer;
-            margin-top: 20px;
+            margin-top: 30px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        #start-button:hover {
+            background-color: #27ae60;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        
+        #start-button:active {
+            transform: translateY(1px);
         }
         
         #instructions {
             max-width: 600px;
             text-align: center;
+            margin: 20px 0;
+            line-height: 1.6;
+            font-size: 18px;
+        }
+        
+        h1 {
+            font-size: 42px;
             margin-bottom: 20px;
+            color: #2ecc71;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        #loading-message {
+            margin-top: 20px;
+            color: #ecf0f1;
+            font-style: italic;
+        }
+        
+        #debug-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 150;
         }
     </style>
 </head>
@@ -108,26 +160,27 @@
         
         <div id="video-container">
             <video id="video" playsinline></video>
-            <canvas id="canvas"></canvas>
         </div>
         
         <div id="pointer"></div>
+        <div id="debug-info"></div>
         
         <div id="start-screen">
             <h1>Game Kontrol Tangan</h1>
             <div id="instructions">
-                <p>Gunakan pergerakan tangan Anda untuk mengontrol pointer merah.</p>
-                <p>Gerakkan tangan Anda di depan kamera untuk menggerakkan pointer.</p>
-                <p>Sentuh target biru dengan pointer untuk mendapatkan poin.</p>
-                <p>Pastikan seluruh tangan Anda terlihat jelas di kamera.</p>
+                <p>🚀 Gunakan pergerakan tangan Anda untuk mengontrol pointer merah!</p>
+                <p>👋 Tunjukkan tangan Anda ke kamera dan gerakkan untuk menggerakkan pointer</p>
+                <p>🎯 Sentuh target biru untuk mendapatkan poin</p>
+                <p>💡 Pastikan pencahayaan cukup dan tangan terlihat jelas di kamera</p>
             </div>
             <button id="start-button">Mulai Permainan</button>
+            <div id="loading-message">Permainan akan memuat model AI deteksi tangan...</div>
         </div>
     </div>
 
     <!-- Load TensorFlow.js and Handpose model -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js"></script>
     
     <script>
         // Game variables
@@ -140,53 +193,105 @@
         let scoreDisplay = document.getElementById('score-display');
         let startScreen = document.getElementById('start-screen');
         let startButton = document.getElementById('start-button');
+        let loadingMessage = document.getElementById('loading-message');
+        let debugInfo = document.getElementById('debug-info');
         
         // Target variables
         let targets = [];
-        const targetCount = 5;
-        let targetSpeed = 2;
+        const targetCount = 6;
+        let targetSpeed = 1.5;
+        let lastHandPosition = { x: 0, y: 0 };
         
         // Initialize the game
         async function initGame() {
-            // Hide start screen
-            startScreen.style.display = 'none';
-            gameActive = true;
-            
-            // Initialize camera and hand tracking
-            await initCamera();
-            handpose = await handpose.load();
-            
-            // Create targets
-            createTargets();
-            
-            // Start game loop
-            gameLoop();
-        }
-        
-        // Initialize camera
-        async function initCamera() {
-            video = document.getElementById('video');
+            startButton.disabled = true;
+            loadingMessage.textContent = "Memuat model deteksi tangan...";
             
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: false
-                });
-                video.srcObject = stream;
+                // Load handpose model first
+                loadingMessage.textContent = "Memuat model AI... (Mungkin butuh beberapa detik)";
+                console.log("Loading handpose model...");
                 
-                return new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        resolve();
-                    };
+                handpose = await handpose.load({
+                    maxContinuousChecks: 5,
+                    detectionConfidence: 0.8,
+                    scoreThreshold: 0.75
                 });
-            } catch (err) {
-                console.error("Error accessing camera: ", err);
-                alert("Tidak dapat mengakses kamera. Pastikan Anda memberikan izin.");
+                
+                console.log("Handpose model loaded successfully");
+                loadingMessage.textContent = "Menginisialisasi kamera...";
+                
+                // Initialize camera
+                await initCamera();
+                
+                // Setup game elements
+                createTargets();
+                
+                // Hide start screen
+                startScreen.style.display = 'none';
+                gameActive = true;
+                
+                // Start game loops
+                gameLoop();
+                detectHand();
+                
+            } catch (error) {
+                console.error("Game initialization failed:", error);
+                loadingMessage.textContent = "Error: " + error.message;
+                startButton.disabled = false;
+                
+                // Show error to user
+                alert("Gagal memulai permainan: " + error.message + "\n\nPastikan Anda memberikan izin akses kamera dan menggunakan browser terbaru.");
+                
+                // Show start screen again
+                startScreen.style.display = 'flex';
+                gameActive = false;
             }
         }
         
-        // Create targets
+        // Initialize camera with better constraints
+        async function initCamera() {
+            video = document.getElementById('video');
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Browser Anda tidak mendukung akses kamera");
+            }
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "user",
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+                
+                return new Promise((resolve, reject) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        console.log("Camera initialized:", video.videoWidth, "x", video.videoHeight);
+                        resolve();
+                    };
+                    
+                    video.onerror = () => {
+                        reject(new Error("Gagal memuat video dari kamera"));
+                    };
+                    
+                    setTimeout(() => {
+                        reject(new Error("Timeout saat memuat kamera"));
+                    }, 10000);
+                });
+            } catch (err) {
+                console.error("Camera access error:", err);
+                throw new Error("Tidak dapat mengakses kamera. Pastikan Anda memberikan izin akses kamera.");
+            }
+        }
+        
+        // Create targets with random positions and movements
         function createTargets() {
             const containerWidth = gameContainer.clientWidth;
             const containerHeight = gameContainer.clientHeight;
@@ -194,17 +299,23 @@
             for (let i = 0; i < targetCount; i++) {
                 const target = document.createElement('div');
                 target.className = 'target';
+                target.textContent = i+1;
                 
-                // Random position
-                const x = Math.random() * (containerWidth - 40) + 20;
-                const y = Math.random() * (containerHeight - 40) + 20;
+                // Random position within safe area
+                const x = Math.random() * (containerWidth - 100) + 50;
+                const y = Math.random() * (containerHeight - 100) + 50;
                 
                 target.style.left = `${x}px`;
                 target.style.top = `${y}px`;
                 
-                // Random movement direction
-                target.dx = (Math.random() - 0.5) * targetSpeed;
-                target.dy = (Math.random() - 0.5) * targetSpeed;
+                // Random movement direction with slight bias toward center
+                target.dx = (Math.random() - 0.5) * targetSpeed * 2;
+                target.dy = (Math.random() - 0.5) * targetSpeed * 2;
+                
+                // Random size variation
+                const size = 40 + Math.random() * 20;
+                target.style.width = `${size}px`;
+                target.style.height = `${size}px`;
                 
                 gameContainer.appendChild(target);
                 targets.push(target);
@@ -213,52 +324,56 @@
         
         // Detect hand and update pointer position
         async function detectHand() {
-            if (!gameActive) return;
-            
-            const predictions = await handpose.estimateHands(video);
-            
-            if (predictions.length > 0) {
-                const landmarks = predictions[0].landmarks;
-                
-                // Get palm base (landmark 0) or middle finger base (landmark 9)
-                const palmBase = landmarks[0] || landmarks[9];
-                
-                if (palmBase) {
-                    // Convert hand position to screen coordinates
-                    const videoWidth = video.videoWidth;
-                    const videoHeight = video.videoHeight;
-                    const videoAspect = videoWidth / videoHeight;
-                    
-                    const containerWidth = gameContainer.clientWidth;
-                    const containerHeight = gameContainer.clientHeight;
-                    const containerAspect = containerWidth / containerHeight;
-                    
-                    let x, y;
-                    
-                    if (videoAspect > containerAspect) {
-                        // Video is wider than container (letterbox on top and bottom)
-                        const scale = containerWidth / videoWidth;
-                        const offsetY = (containerHeight - videoHeight * scale) / 2;
-                        x = palmBase[0] * scale;
-                        y = palmBase[1] * scale + offsetY;
-                    } else {
-                        // Video is taller than container (letterbox on sides)
-                        const scale = containerHeight / videoHeight;
-                        const offsetX = (containerWidth - videoWidth * scale) / 2;
-                        x = palmBase[0] * scale + offsetX;
-                        y = palmBase[1] * scale;
-                    }
-                    
-                    // Update pointer position
-                    pointer.style.left = `${x}px`;
-                    pointer.style.top = `${y}px`;
-                    
-                    // Check for collisions with targets
-                    checkCollisions(x, y);
-                }
+            if (!gameActive || !handpose) {
+                requestAnimationFrame(detectHand);
+                return;
             }
             
-            // Continue detection
+            try {
+                const predictions = await handpose.estimateHands(video);
+                debugInfo.textContent = `Deteksi: ${predictions.length} tangan`;
+                
+                if (predictions.length > 0) {
+                    const landmarks = predictions[0].landmarks;
+                    
+                    // Get palm base (landmark 0) or middle finger MCP (landmark 9)
+                    const palmBase = landmarks[0] || landmarks[9];
+                    
+                    if (palmBase) {
+                        // Convert hand position to screen coordinates
+                        const videoRect = video.getBoundingClientRect();
+                        const videoScaleX = videoRect.width / video.videoWidth;
+                        const videoScaleY = videoRect.height / video.videoHeight;
+                        
+                        // Calculate position relative to video element
+                        const videoX = palmBase[0] * videoScaleX;
+                        const videoY = palmBase[1] * videoScaleY;
+                        
+                        // Convert to game container coordinates
+                        const containerRect = gameContainer.getBoundingClientRect();
+                        const x = videoRect.left - containerRect.left + videoX;
+                        const y = videoRect.top - containerRect.top + videoY;
+                        
+                        // Smooth movement
+                        lastHandPosition.x = x;
+                        lastHandPosition.y = y;
+                        
+                        // Update pointer position
+                        pointer.style.left = `${x}px`;
+                        pointer.style.top = `${y}px`;
+                        
+                        // Check for collisions
+                        checkCollisions(x, y);
+                    }
+                } else {
+                    // No hand detected - you could add visual feedback here
+                    debugInfo.textContent = "Tidak terdeteksi tangan";
+                }
+            } catch (error) {
+                console.error("Hand detection error:", error);
+                debugInfo.textContent = "Error deteksi tangan";
+            }
+            
             requestAnimationFrame(detectHand);
         }
         
@@ -271,7 +386,7 @@
                 
                 const targetX = parseFloat(target.style.left);
                 const targetY = parseFloat(target.style.top);
-                const targetRadius = 20;
+                const targetRadius = parseFloat(target.style.width) / 2;
                 
                 // Calculate distance between pointer and target
                 const dx = pointerX - targetX;
@@ -284,12 +399,19 @@
                     score++;
                     scoreDisplay.textContent = `Skor: ${score}`;
                     
-                    // Remove target
-                    gameContainer.removeChild(target);
-                    targets[index] = null;
+                    // Visual feedback
+                    target.style.backgroundColor = "#f1c40f";
+                    target.style.transform = "translate(-50%, -50%) scale(1.2)";
+                    target.style.boxShadow = "0 0 20px #f1c40f";
                     
-                    // Create new target
-                    createNewTarget();
+                    // Remove target after animation
+                    setTimeout(() => {
+                        if (target.parentNode) {
+                            gameContainer.removeChild(target);
+                            targets[index] = null;
+                            createNewTarget();
+                        }
+                    }, 200);
                 }
             });
         }
@@ -301,17 +423,23 @@
             
             const target = document.createElement('div');
             target.className = 'target';
+            target.textContent = Math.floor(Math.random() * 10) + 1;
             
             // Random position
-            const x = Math.random() * (containerWidth - 40) + 20;
-            const y = Math.random() * (containerHeight - 40) + 20;
+            const x = Math.random() * (containerWidth - 100) + 50;
+            const y = Math.random() * (containerHeight - 100) + 50;
             
             target.style.left = `${x}px`;
             target.style.top = `${y}px`;
             
             // Random movement direction
-            target.dx = (Math.random() - 0.5) * targetSpeed;
-            target.dy = (Math.random() - 0.5) * targetSpeed;
+            target.dx = (Math.random() - 0.5) * targetSpeed * 2;
+            target.dy = (Math.random() - 0.5) * targetSpeed * 2;
+            
+            // Random size
+            const size = 40 + Math.random() * 20;
+            target.style.width = `${size}px`;
+            target.style.height = `${size}px`;
             
             gameContainer.appendChild(target);
             
@@ -324,7 +452,7 @@
             }
         }
         
-        // Update targets position
+        // Update targets position with bouncing
         function updateTargets() {
             const containerWidth = gameContainer.clientWidth;
             const containerHeight = gameContainer.clientHeight;
@@ -339,15 +467,15 @@
                 x += target.dx;
                 y += target.dy;
                 
-                // Bounce off walls
-                if (x < 20 || x > containerWidth - 20) {
-                    target.dx *= -1;
-                    x = x < 20 ? 20 : containerWidth - 20;
+                // Bounce off walls with slight randomness
+                if (x < 50 || x > containerWidth - 50) {
+                    target.dx *= -1 * (0.9 + Math.random() * 0.2);
+                    x = x < 50 ? 50 : containerWidth - 50;
                 }
                 
-                if (y < 20 || y > containerHeight - 20) {
-                    target.dy *= -1;
-                    y = y < 20 ? 20 : containerHeight - 20;
+                if (y < 50 || y > containerHeight - 50) {
+                    target.dy *= -1 * (0.9 + Math.random() * 0.2);
+                    y = y < 50 ? 50 : containerHeight - 50;
                 }
                 
                 target.style.left = `${x}px`;
@@ -366,10 +494,10 @@
         // Start button event listener
         startButton.addEventListener('click', initGame);
         
-        // Start hand detection when everything is ready
+        // Initialize when page loads
         window.addEventListener('load', () => {
-            // Small delay to ensure everything is loaded
-            setTimeout(detectHand, 500);
+            console.log("Page fully loaded");
+            startButton.focus();
         });
     </script>
 </body>
