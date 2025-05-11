@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Kontrol Tangan</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        
+        #video-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid #333;
+            background-color: #000;
+            z-index: 100;
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #canvas {
+            display: none;
+        }
+        
+        #pointer {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        
+        .target {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: blue;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        
+        #score-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #333;
+            z-index: 100;
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 200;
+        }
+        
+        #start-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        #instructions {
+            max-width: 600px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score-display">Skor: 0</div>
+        
+        <div id="video-container">
+            <video id="video" playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div id="pointer"></div>
+        
+        <div id="start-screen">
+            <h1>Game Kontrol Tangan</h1>
+            <div id="instructions">
+                <p>Gunakan pergerakan tangan Anda untuk mengontrol pointer merah.</p>
+                <p>Gerakkan tangan Anda di depan kamera untuk menggerakkan pointer.</p>
+                <p>Sentuh target biru dengan pointer untuk mendapatkan poin.</p>
+                <p>Pastikan seluruh tangan Anda terlihat jelas di kamera.</p>
+            </div>
+            <button id="start-button">Mulai Permainan</button>
+        </div>
+    </div>
+
+    <!-- Load TensorFlow.js and Handpose model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+    
+    <script>
+        // Game variables
+        let score = 0;
+        let gameActive = false;
+        let handpose;
+        let video;
+        let pointer = document.getElementById('pointer');
+        let gameContainer = document.getElementById('game-container');
+        let scoreDisplay = document.getElementById('score-display');
+        let startScreen = document.getElementById('start-screen');
+        let startButton = document.getElementById('start-button');
+        
+        // Target variables
+        let targets = [];
+        const targetCount = 5;
+        let targetSpeed = 2;
+        
+        // Initialize the game
+        async function initGame() {
+            // Hide start screen
+            startScreen.style.display = 'none';
+            gameActive = true;
+            
+            // Initialize camera and hand tracking
+            await initCamera();
+            handpose = await handpose.load();
+            
+            // Create targets
+            createTargets();
+            
+            // Start game loop
+            gameLoop();
+        }
+        
+        // Initialize camera
+        async function initCamera() {
+            video = document.getElementById('video');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+                video.srcObject = stream;
+                
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve();
+                    };
+                });
+            } catch (err) {
+                console.error("Error accessing camera: ", err);
+                alert("Tidak dapat mengakses kamera. Pastikan Anda memberikan izin.");
+            }
+        }
+        
+        // Create targets
+        function createTargets() {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            
+            for (let i = 0; i < targetCount; i++) {
+                const target = document.createElement('div');
+                target.className = 'target';
+                
+                // Random position
+                const x = Math.random() * (containerWidth - 40) + 20;
+                const y = Math.random() * (containerHeight - 40) + 20;
+                
+                target.style.left = `${x}px`;
+                target.style.top = `${y}px`;
+                
+                // Random movement direction
+                target.dx = (Math.random() - 0.5) * targetSpeed;
+                target.dy = (Math.random() - 0.5) * targetSpeed;
+                
+                gameContainer.appendChild(target);
+                targets.push(target);
+            }
+        }
+        
+        // Detect hand and update pointer position
+        async function detectHand() {
+            if (!gameActive) return;
+            
+            const predictions = await handpose.estimateHands(video);
+            
+            if (predictions.length > 0) {
+                const landmarks = predictions[0].landmarks;
+                
+                // Get palm base (landmark 0) or middle finger base (landmark 9)
+                const palmBase = landmarks[0] || landmarks[9];
+                
+                if (palmBase) {
+                    // Convert hand position to screen coordinates
+                    const videoWidth = video.videoWidth;
+                    const videoHeight = video.videoHeight;
+                    const videoAspect = videoWidth / videoHeight;
+                    
+                    const containerWidth = gameContainer.clientWidth;
+                    const containerHeight = gameContainer.clientHeight;
+                    const containerAspect = containerWidth / containerHeight;
+                    
+                    let x, y;
+                    
+                    if (videoAspect > containerAspect) {
+                        // Video is wider than container (letterbox on top and bottom)
+                        const scale = containerWidth / videoWidth;
+                        const offsetY = (containerHeight - videoHeight * scale) / 2;
+                        x = palmBase[0] * scale;
+                        y = palmBase[1] * scale + offsetY;
+                    } else {
+                        // Video is taller than container (letterbox on sides)
+                        const scale = containerHeight / videoHeight;
+                        const offsetX = (containerWidth - videoWidth * scale) / 2;
+                        x = palmBase[0] * scale + offsetX;
+                        y = palmBase[1] * scale;
+                    }
+                    
+                    // Update pointer position
+                    pointer.style.left = `${x}px`;
+                    pointer.style.top = `${y}px`;
+                    
+                    // Check for collisions with targets
+                    checkCollisions(x, y);
+                }
+            }
+            
+            // Continue detection
+            requestAnimationFrame(detectHand);
+        }
+        
+        // Check for collisions between pointer and targets
+        function checkCollisions(pointerX, pointerY) {
+            const pointerRadius = 15;
+            
+            targets.forEach((target, index) => {
+                if (!target) return;
+                
+                const targetX = parseFloat(target.style.left);
+                const targetY = parseFloat(target.style.top);
+                const targetRadius = 20;
+                
+                // Calculate distance between pointer and target
+                const dx = pointerX - targetX;
+                const dy = pointerY - targetY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check collision
+                if (distance < pointerRadius + targetRadius) {
+                    // Target hit!
+                    score++;
+                    scoreDisplay.textContent = `Skor: ${score}`;
+                    
+                    // Remove target
+                    gameContainer.removeChild(target);
+                    targets[index] = null;
+                    
+                    // Create new target
+                    createNewTarget();
+                }
+            });
+        }
+        
+        // Create a new target
+        function createNewTarget() {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            
+            const target = document.createElement('div');
+            target.className = 'target';
+            
+            // Random position
+            const x = Math.random() * (containerWidth - 40) + 20;
+            const y = Math.random() * (containerHeight - 40) + 20;
+            
+            target.style.left = `${x}px`;
+            target.style.top = `${y}px`;
+            
+            // Random movement direction
+            target.dx = (Math.random() - 0.5) * targetSpeed;
+            target.dy = (Math.random() - 0.5) * targetSpeed;
+            
+            gameContainer.appendChild(target);
+            
+            // Replace first null target or add new
+            const nullIndex = targets.indexOf(null);
+            if (nullIndex !== -1) {
+                targets[nullIndex] = target;
+            } else {
+                targets.push(target);
+            }
+        }
+        
+        // Update targets position
+        function updateTargets() {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            
+            targets.forEach(target => {
+                if (!target) return;
+                
+                let x = parseFloat(target.style.left);
+                let y = parseFloat(target.style.top);
+                
+                // Update position
+                x += target.dx;
+                y += target.dy;
+                
+                // Bounce off walls
+                if (x < 20 || x > containerWidth - 20) {
+                    target.dx *= -1;
+                    x = x < 20 ? 20 : containerWidth - 20;
+                }
+                
+                if (y < 20 || y > containerHeight - 20) {
+                    target.dy *= -1;
+                    y = y < 20 ? 20 : containerHeight - 20;
+                }
+                
+                target.style.left = `${x}px`;
+                target.style.top = `${y}px`;
+            });
+        }
+        
+        // Main game loop
+        function gameLoop() {
+            if (!gameActive) return;
+            
+            updateTargets();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start button event listener
+        startButton.addEventListener('click', initGame);
+        
+        // Start hand detection when everything is ready
+        window.addEventListener('load', () => {
+            // Small delay to ensure everything is loaded
+            setTimeout(detectHand, 500);
+        });
+    </script>
+</body>
+</html>
